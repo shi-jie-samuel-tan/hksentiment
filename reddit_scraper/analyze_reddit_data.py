@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import re
+import nltk
 from nltk.corpus import wordnet
 import string
 from nltk import pos_tag
@@ -10,6 +11,10 @@ from nltk.corpus import stopwords
 from nltk.tokenize import WhitespaceTokenizer
 from nltk.stem import WordNetLemmatizer
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+from gensim.test.utils import common_texts
+from gensim.models.doc2vec import Doc2Vec, TaggedDocument
+from sklearn.feature_extraction.text import TfidfVectorizer
+import seaborn as sns
 
 def show_word_cloud(data, title=None):
     wordcloud = WordCloud(
@@ -29,30 +34,11 @@ def show_word_cloud(data, title=None):
     plt.imshow(wordcloud)
     plt.show()
 
-def sentiment_analysis(processed_data: pd.DataFrame):
-    # Create a sid object called SentimentIntensityAnalyzer()
-    sid = SentimentIntensityAnalyzer()
-
-    # Apply polarity_score method of SentimentIntensityAnalyzer()
-    processed_data['sentiment'] = processed_data['cleaned_text'].apply(lambda x: sid.polarity_scores(x))
-
-    # Keep only the compound scores under the column 'Sentiment'
-    data = pd.concat([processed_data.drop(['sentiment'], axis=1), processed_data['sentiment'].apply(pd.Series)], axis=1)
-
-    # New column: number of characters in 'review'
-    data['numchars'] = data['cleaned_text'].apply(lambda x: len(x))
-
-    # New column: number of words in 'review'
-    data['numwords'] = data['cleaned_text'].apply(lambda x: len(x.split(" ")))
-
-    # Check the new columns:
-    data.tail(2)
-
+def sentiment_analysis(engineered_data: pd.DataFrame):
 
     sentimentclass_list = []
-    for i in range(0, len(data)):
-        curr_compound = data.iloc[i, :]['compound']
-
+    for i in range(0, len(engineered_data)):
+        curr_compound = engineered_data['compound'][i]
         if (curr_compound <= 1.0 and curr_compound >= 0.55):
             sentimentclass_list.append(5)
         elif (curr_compound < 0.55 and curr_compound >= 0.10):
@@ -63,7 +49,88 @@ def sentiment_analysis(processed_data: pd.DataFrame):
             sentimentclass_list.append(2)
         elif (curr_compound <= -0.55 and curr_compound >= -1.00):
             sentimentclass_list.append(1)
-    data['sentiment_class'] = sentimentclass_list
+    engineered_data['sentiment_class'] = sentimentclass_list
+    engineered_data.tail()['sentiment_class']
+    # Verify if the classification assignment is correct:
+    engineered_data.iloc[0:5, :][['compound', 'sentiment_class']]
+
+    plt.figure(figsize=(10, 5))
+    sns.set_palette('PuBuGn_d')
+    sns.countplot(engineered_data['sentiment_class'])
+    plt.title('Countplot of sentiment_class')
+    plt.xlabel('sentiment_class')
+    plt.ylabel('No. of classes')
+    plt.show()
+
+    # Display full text:
+    pd.set_option('display.max_colwidth', -1)
+
+    # Look at some examples of negative, neutral and positive tweets
+
+    # Filter 10 negative original tweets:
+    print("10 random negative original tweets and their sentiment classes:")
+    print(engineered_data[(engineered_data['sentiment_class'] == 1) | (engineered_data['sentiment_class'] == 2)].sample(n=10)[['body', 'sentiment_class']])
+
+    # Filter 10 neutral original tweets:
+    print("10 random neutral original tweets and their sentiment classes:")
+    print(engineered_data[(engineered_data['sentiment_class'] == 3)].sample(n=10)[['body', 'sentiment_class']])
+
+    # Filter 20 positive original tweets:
+    print("20 random positive original tweets and their sentiment classes:")
+    print(engineered_data[(engineered_data['sentiment_class'] == 4) | (engineered_data['sentiment_class'] == 5)].sample(n=20)[['body', 'sentiment_class']])
+
+
+def feature_engineering(processed_data: pd.DataFrame):
+    # Create a sid object called SentimentIntensityAnalyzer()
+    sid = SentimentIntensityAnalyzer()
+
+    # Apply polarity_score method of SentimentIntensityAnalyzer()
+    processed_data['sentiment'] = processed_data['cleaned_body'].apply(lambda x: sid.polarity_scores(x))
+
+    # Keep only the compound scores under the column 'Sentiment'
+    data = pd.concat([processed_data.drop(['sentiment'], axis=1), processed_data['sentiment'].apply(pd.Series)], axis=1)
+
+    # New column: number of characters in 'review'
+    data['numchars'] = data['cleaned_body'].apply(lambda x: len(x))
+
+    # New column: number of words in 'review'
+    data['numwords'] = data['cleaned_body'].apply(lambda x: len(x.split(" ")))
+
+    documents = [TaggedDocument(doc, [i]) for i, doc in enumerate(data["cleaned_body"].apply(lambda x: x.split(" ")))]
+
+    model = Doc2Vec(documents, vector_size=4, window=2, min_count=1, workers=4)
+
+    doc2vec_df = data["cleaned_body"].apply(lambda x: model.infer_vector(x.split(" "))).apply(pd.Series)
+    doc2vec_df.columns = ["doc2vec_vector_" + str(x) for x in doc2vec_df.columns]
+    data = pd.concat([data, doc2vec_df], axis=1)
+
+    # Check the new columns:
+    data.tail(2)
+
+    tfidf = TfidfVectorizer(
+        max_features=100,
+        min_df=10,
+        stop_words='english'
+    )
+
+    # Fit_transform our 'revi`ew' (the corpus) using the tfidf object from above
+    tfidf_result = tfidf.fit_transform(data['cleaned_body']).toarray()
+
+    # Extract the frequencies and store them in a temporary dataframe
+    tfidf_df = pd.DataFrame(tfidf_result, columns = tfidf.get_feature_names())
+
+    # Rename the column names and index
+    tfidf_df.columns = ["word_" + str(x) for x in tfidf_df.columns]
+    tfidf_df.index = data.index
+
+    # Concatenate the two dataframes - 'dataset' and 'tfidf_df'
+    # Note: Axis = 1 -> add the 'tfidf_df' dataframe along the columns  or add these columns as columns in 'dataset'.
+    data = pd.concat([data, tfidf_df], axis = 1)
+
+    # Check out the new 'dataset' dataframe
+    data.tail(2)
+
+    return data
 
 def preprocess_comments(data: pd.DataFrame):
     processed_data = data.copy(deep=True)
@@ -158,8 +225,9 @@ if __name__ == "__main__":
     path = os.getcwd()
     path = path.split('\\\\')
     file_path = r'\''.join(path)
-    data = r'\reddit_data\\'
-    print(file_path + data + "20200210_163943_hkprotest_comments.csv")
-    df = pd.read_csv(file_path + data + "20200210_163943_hkprotest_comments.csv")
-    print(df['body'])
+    data = r'/reddit_data'
+    df = pd.read_csv(file_path + data + "/20200210_163943_hkprotest_comments.csv")
     # show_word_cloud(df.body.tolist())
+    processed_data = preprocess_comments(df)
+    engineered_data = feature_engineering(processed_data)
+    sentiment_analysis(engineered_data)
