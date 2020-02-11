@@ -1,0 +1,4 @@
+id,name,author,comments,num_comments,created,score,upvote_ratio
+dfdqf8,t3_dfdqf8,omegalulit,<praw.models.comment_forest.CommentForest object at 0x00000169DB7C0320>,1948,1570635495.0,136345,0.96
+cw0jht,t3_cw0jht,EvilTeliportist,<praw.models.comment_forest.CommentForest object at 0x00000169DB8E3DA0>,1625,1566916292.0,102305,0.89
+dxnd32,t3_dxnd32,Cumzilla-420,<praw.models.comment_forest.CommentForest object at 0x00000169DBA3EC18>,1779,1574030751.0,101342,0.94
