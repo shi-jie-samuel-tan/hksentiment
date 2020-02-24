@@ -146,7 +146,7 @@ def preprocess_comments(data: pd.DataFrame):
     processed_data['acctdesc'] = processed_data['acctdesc'].apply(lambda x: remove_nan(x))
     # Check out the shape again and reset_index
     processed_data.reset_index(inplace=True, drop=True)
-    print(processed_data["cleaned_text"])
+    processed_data['cleaned_text'].to_csv(os.getcwd() + "/test.csv")
     return processed_data
 
 
@@ -197,14 +197,15 @@ def clean_text(text):
                                "]+", flags=re.UNICODE)
 
     # Apply regex expressions first before converting string to list of tokens/words:
+
+    # 12. remove newlines
+    text = text.replace('\n', ' ').replace('\r', '')
+
     # 1. remove @usernames
     text = re.sub('@[^\s]+', '', text)
 
     # 2. remove URLs
     text = re.sub(r'http\S+', '', text)
-
-    # 12. remove newlines
-    text = re.sub(r"\r\n", " ", text)
 
     # 3. remove hashtags entirely i.e. #hashtags
     text = re.sub(r'#([^\s]+)', '', text)
@@ -268,9 +269,9 @@ if __name__ == "__main__":
     path = os.getcwd()
     path = path.split('\\\\')
     file_path = r'\''.join(path)
-    data = '\\twitter_data'
-    df = pd.read_csv(file_path + data + "\\20200216_223932_hkprotest_threads.csv")
+    data = '/twitter_data'
+    df = pd.read_csv(file_path + data + "/20200216_223932_hkprotest_threads.csv")
     processed_data = preprocess_comments(df)
     engineered_data = feature_engineering(processed_data)
-    show_word_cloud(engineered_data.text.tolist())
+    show_word_cloud(engineered_data.cleaned_text.tolist())
     sentiment_analysis(engineered_data)
