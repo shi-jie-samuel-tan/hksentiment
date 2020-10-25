@@ -3,7 +3,7 @@
 ## About
 This is a project that scrapes Weibo and Reddit for sentiments about the Hong Kong protests. It uses PRAW and Tweepy to scrape Reddit and Twitter for posts regarding the protests. It also uses NLTK, GenSim, and sklearn to process and perform sentiment analysis on the dataset.
 
-![Word Cloud Image](https://github.com/samueltan97/hksentiment/blob/master/sentiment_score.png)
+![Word Cloud Image](https://github.com/samueltan97/hksentiment/blob/master/wordcloud.JPG)
 
 ![Sentiment Score Image](https://github.com/samueltan97/hksentiment/blob/master/sentiment_score.png)
 
